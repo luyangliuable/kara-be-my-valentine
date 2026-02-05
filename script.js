@@ -197,30 +197,34 @@ function createFloatingImages() {
             // Enhanced velocity calculation with speed limits
             const screenSize = Math.min(window.innerWidth, window.innerHeight);
             let velocityScale = screenSize / 800; // Base scale factor
-            
+
             // Speed limits based on screen size
             const maxSpeed = screenArea < 1000000 ? 1.5 : 2.5; // Faster on larger screens
-            const minSpeed = 0.3;
-            
-            // Generate base velocity
+            const minSpeed = 0.5; // Increased minimum speed
+
+            // Generate base velocity with guaranteed movement
             let baseVx = (Math.random() - 0.5) * 2 * velocityScale;
             let baseVy = (Math.random() - 0.5) * 2 * velocityScale;
-            
+
             // Enforce speed limits
             this.vx = Math.max(-maxSpeed, Math.min(maxSpeed, baseVx));
             this.vy = Math.max(-maxSpeed, Math.min(maxSpeed, baseVy));
-            
-            // Ensure minimum speed (not too slow)
+
+            // Ensure minimum speed (always moving)
             if (Math.abs(this.vx) < minSpeed) {
                 this.vx = this.vx >= 0 ? minSpeed : -minSpeed;
             }
             if (Math.abs(this.vy) < minSpeed) {
                 this.vy = this.vy >= 0 ? minSpeed : -minSpeed;
             }
-            
-            // Random starting rotation
+
+            // Random starting rotation with guaranteed slow rotation
             this.rotation = Math.random() * 360;
-            this.rotationSpeed = (Math.random() - 0.5) * 0.8; // -0.4 to 0.4 degrees per frame
+            this.rotationSpeed = (Math.random() - 0.5) * 0.6; // -0.3 to 0.3 degrees per frame
+            // Ensure minimum rotation
+            if (Math.abs(this.rotationSpeed) < 0.1) {
+                this.rotationSpeed = this.rotationSpeed >= 0 ? 0.1 : -0.1;
+            }
 
             this.updatePosition();
             document.body.appendChild(this.img);
