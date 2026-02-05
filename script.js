@@ -211,7 +211,7 @@ function createFloatingImages() {
             
             // Random starting rotation
             this.rotation = Math.random() * 360;
-            this.rotationSpeed = (Math.random() - 0.5) * 0.5; // -0.25 to 0.25 degrees per frame
+            this.rotationSpeed = (Math.random() - 0.5) * 0.8; // -0.4 to 0.4 degrees per frame
             
             this.updatePosition();
             document.body.appendChild(this.img);
@@ -260,9 +260,21 @@ function createFloatingImages() {
             // Check collision with buttons and text elements
             this.checkDOMCollisions();
 
-            // If bounced, reduce rotation
+            // If bounced, reduce rotation but keep more, add spin based on bounce
             if (bounced) {
-                this.rotationSpeed *= 0.8;
+                this.rotationSpeed *= 0.85;
+
+                // Add spin based on horizontal velocity (hitting side walls)
+                if (this.x <= 0 || this.x >= window.innerWidth - this.width) {
+                    this.rotationSpeed += this.vy * 0.15; // Vertical velocity creates spin
+                }
+                // Add spin based on vertical velocity (hitting top/bottom)
+                if (this.y <= 0 || this.y >= window.innerHeight - this.height) {
+                    this.rotationSpeed += this.vx * 0.15; // Horizontal velocity creates spin
+                }
+
+                // Cap rotation speed
+                this.rotationSpeed = Math.max(-2.5, Math.min(2.5, this.rotationSpeed));
 
                 const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
                 const maxBounceSpeed = 2.0;
@@ -329,24 +341,34 @@ function createFloatingImages() {
                         this.vx = dx > 0 ? Math.abs(this.vx) : -Math.abs(this.vx);
                         this.vx *= 0.8;
                         this.x += dx > 0 ? overlapX : -overlapX;
+                        // Add rotational spin from vertical velocity
+                        this.rotationSpeed += this.vy * 0.2;
                     } else {
                         // Bounce vertically
                         this.vy = dy > 0 ? Math.abs(this.vy) : -Math.abs(this.vy);
                         this.vy *= 0.8;
                         this.y += dy > 0 ? overlapY : -overlapY;
+                        // Add rotational spin from horizontal velocity
+                        this.rotationSpeed += this.vx * 0.2;
                     }
 
-                    this.rotationSpeed *= 0.75;
+                    this.rotationSpeed *= 0.85;
+                    // Cap rotation speed
+                    this.rotationSpeed = Math.max(-2.5, Math.min(2.5, this.rotationSpeed));
                 }
             });
         }
 
-        // Check collision with another image using AABB
+        // Check collision with another image using AABB with percentage-based padding
         collidesWith(other) {
-            return (this.x < other.x + other.width &&
-                    this.x + this.width > other.x &&
-                    this.y < other.y + other.height &&
-                    this.y + this.height > other.y);
+            // Add padding as 8% of average size for earlier detection
+            const thisPadding = Math.max(this.width, this.height) * 0.08;
+            const otherPadding = Math.max(other.width, other.height) * 0.08;
+
+            return (this.x - thisPadding < other.x + other.width + otherPadding &&
+                    this.x + this.width + thisPadding > other.x - otherPadding &&
+                    this.y - thisPadding < other.y + other.height + otherPadding &&
+                    this.y + this.height + thisPadding > other.y - otherPadding);
         }
 
         // Bounce off another image
@@ -371,8 +393,8 @@ function createFloatingImages() {
                 const overlap = Math.min(overlapX, overlapY);
 
                 if (overlap > 0) {
-                    // Push apart based on overlap
-                    const pushAmount = overlap * 0.51;
+                    // Push apart based on overlap - more aggressive
+                    const pushAmount = overlap * 0.55; // Increased from 0.51
                     this.x += nx * pushAmount;
                     this.y += ny * pushAmount;
                     other.x -= nx * pushAmount;
@@ -382,6 +404,11 @@ function createFloatingImages() {
                     const rvx = this.vx - other.vx;
                     const rvy = this.vy - other.vy;
                     const relativeSpeed = rvx * nx + rvy * ny;
+
+                    // Calculate perpendicular velocity for rotation (tangential component)
+                    const tangentX = -ny;
+                    const tangentY = nx;
+                    const tangentialSpeed = rvx * tangentX + rvy * tangentY;
 
                     // Apply bounce
                     if (relativeSpeed < 0) {
@@ -401,9 +428,18 @@ function createFloatingImages() {
                         other.vy -= ny * pushSpeed;
                     }
 
+                    // Transfer angular momentum based on tangential collision
+                    const rotationTransfer = tangentialSpeed * 0.25;
+                    this.rotationSpeed += rotationTransfer;
+                    other.rotationSpeed -= rotationTransfer;
+
                     // Reduce rotation slightly
-                    this.rotationSpeed *= 0.7;
-                    other.rotationSpeed *= 0.7;
+                    this.rotationSpeed *= 0.85;
+                    other.rotationSpeed *= 0.85;
+
+                    // Cap rotation speeds
+                    this.rotationSpeed = Math.max(-2.5, Math.min(2.5, this.rotationSpeed));
+                    other.rotationSpeed = Math.max(-2.5, Math.min(2.5, other.rotationSpeed));
 
                     // Ensure minimum speeds
                     [this, other].forEach(img => {
@@ -488,8 +524,8 @@ function createFloatingImages() {
         // Update all images
         floatingImages.forEach(img => img.update());
 
-        // Check collisions between all images multiple times per frame
-        for (let iteration = 0; iteration < 3; iteration++) {
+        // Check collisions between all images multiple times per frame - increased
+        for (let iteration = 0; iteration < 5; iteration++) {
             for (let i = 0; i < floatingImages.length; i++) {
                 for (let j = i + 1; j < floatingImages.length; j++) {
                     if (floatingImages[i].collidesWith(floatingImages[j])) {
