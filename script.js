@@ -114,6 +114,15 @@ function createFloatingImages() {
             this.img.src = imageSrc;
             this.img.className = 'floating-valentine-physics';
 
+            // Drag state
+            this.isDragging = false;
+            this.dragOffsetX = 0;
+            this.dragOffsetY = 0;
+            this.lastMouseX = 0;
+            this.lastMouseY = 0;
+            this.dragVelocityX = 0;
+            this.dragVelocityY = 0;
+
             // We'll set dimensions after image loads
             this.img.onload = () => {
                 const aspectRatio = this.img.naturalWidth / this.img.naturalHeight;
@@ -212,9 +221,65 @@ function createFloatingImages() {
             // Random starting rotation
             this.rotation = Math.random() * 360;
             this.rotationSpeed = (Math.random() - 0.5) * 0.8; // -0.4 to 0.4 degrees per frame
-            
+
             this.updatePosition();
             document.body.appendChild(this.img);
+
+            // Add drag event listeners
+            this.setupDragHandlers();
+        }
+
+        setupDragHandlers() {
+            // Mouse down - start dragging
+            this.img.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                this.isDragging = true;
+                this.dragOffsetX = e.clientX - this.x;
+                this.dragOffsetY = e.clientY - this.y;
+                this.lastMouseX = e.clientX;
+                this.lastMouseY = e.clientY;
+                this.img.style.cursor = 'grabbing';
+                this.img.style.zIndex = '1000';
+            });
+
+            // Touch start - start dragging (mobile)
+            this.img.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.isDragging = true;
+                this.dragOffsetX = touch.clientX - this.x;
+                this.dragOffsetY = touch.clientY - this.y;
+                this.lastMouseX = touch.clientX;
+                this.lastMouseY = touch.clientY;
+                this.img.style.zIndex = '1000';
+            });
+
+            // Mouse move - drag (global listener added in initFloatingImages)
+            // Touch move - drag (global listener added in initFloatingImages)
+
+            // Mouse up - stop dragging
+            document.addEventListener('mouseup', () => {
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    this.vx = this.dragVelocityX;
+                    this.vy = this.dragVelocityY;
+                    this.img.style.cursor = 'grab';
+                    this.img.style.zIndex = '';
+                }
+            });
+
+            // Touch end - stop dragging
+            document.addEventListener('touchend', () => {
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    this.vx = this.dragVelocityX;
+                    this.vy = this.dragVelocityY;
+                    this.img.style.zIndex = '';
+                }
+            });
+
+            // Set cursor style
+            this.img.style.cursor = 'grab';
         }
         
         updatePosition() {
@@ -224,6 +289,11 @@ function createFloatingImages() {
         }
         
         update() {
+            // If being dragged, skip physics
+            if (this.isDragging) {
+                return;
+            }
+
             // Apply drag/friction to gradually slow down movement
             const dragFactor = 0.998;
             this.vx *= dragFactor;
@@ -361,9 +431,9 @@ function createFloatingImages() {
 
         // Check collision with another image using AABB with percentage-based padding
         collidesWith(other) {
-            // Add padding as 8% of average size for earlier detection
-            const thisPadding = Math.max(this.width, this.height) * 0.08;
-            const otherPadding = Math.max(other.width, other.height) * 0.08;
+            // Increased padding to 12% of average size for earlier detection
+            const thisPadding = Math.max(this.width, this.height) * 0.12;
+            const otherPadding = Math.max(other.width, other.height) * 0.12;
 
             return (this.x - thisPadding < other.x + other.width + otherPadding &&
                     this.x + this.width + thisPadding > other.x - otherPadding &&
@@ -510,7 +580,48 @@ function createFloatingImages() {
             const floatingImg = new FloatingImage(`${imageFolder}${imageName}`, index);
             floatingImages.push(floatingImg);
         });
-        
+
+        // Add global mouse move handler for dragging
+        document.addEventListener('mousemove', (e) => {
+            floatingImages.forEach(img => {
+                if (img.isDragging) {
+                    // Update position
+                    img.x = e.clientX - img.dragOffsetX;
+                    img.y = e.clientY - img.dragOffsetY;
+
+                    // Calculate velocity for throwing
+                    img.dragVelocityX = (e.clientX - img.lastMouseX) * 0.5;
+                    img.dragVelocityY = (e.clientY - img.lastMouseY) * 0.5;
+
+                    img.lastMouseX = e.clientX;
+                    img.lastMouseY = e.clientY;
+
+                    img.updatePosition();
+                }
+            });
+        });
+
+        // Add global touch move handler for dragging (mobile)
+        document.addEventListener('touchmove', (e) => {
+            const touch = e.touches[0];
+            floatingImages.forEach(img => {
+                if (img.isDragging) {
+                    // Update position
+                    img.x = touch.clientX - img.dragOffsetX;
+                    img.y = touch.clientY - img.dragOffsetY;
+
+                    // Calculate velocity for throwing
+                    img.dragVelocityX = (touch.clientX - img.lastMouseX) * 0.5;
+                    img.dragVelocityY = (touch.clientY - img.lastMouseY) * 0.5;
+
+                    img.lastMouseX = touch.clientX;
+                    img.lastMouseY = touch.clientY;
+
+                    img.updatePosition();
+                }
+            });
+        });
+
         // Start animation loop
         animate();
         
