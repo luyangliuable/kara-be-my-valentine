@@ -242,6 +242,10 @@ function createFloatingImages() {
                 this.dragOffsetY = e.clientY - this.y;
                 this.lastMouseX = e.clientX;
                 this.lastMouseY = e.clientY;
+
+                // Reset rotation when starting drag
+                this.rotationSpeed = 0;
+
                 this.img.style.cursor = 'grabbing';
                 this.img.style.zIndex = '1000';
             });
@@ -255,6 +259,10 @@ function createFloatingImages() {
                 this.dragOffsetY = touch.clientY - this.y;
                 this.lastMouseX = touch.clientX;
                 this.lastMouseY = touch.clientY;
+
+                // Reset rotation when starting drag
+                this.rotationSpeed = 0;
+
                 this.img.style.zIndex = '1000';
             });
 
