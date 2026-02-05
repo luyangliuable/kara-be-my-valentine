@@ -49,3 +49,14 @@ body {
     border-radius: 10px;
     margin-top: 20px;
   }
+
+  /* Physics-Based Floating Valentine Images */
+  .floating-valentine-physics {
+    position: fixed;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0.85;
+    border-radius: 15px;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    transition: transform 0.1s ease-out;
+  }
