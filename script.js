@@ -89,7 +89,7 @@ function createFloatingImages() {
     
     // Get all images from the images folder
     async function loadImagesFromFolder() {
-        // Real images found in the folder
+        // Real images found in the folder - directly use them since fetch is blocked by CORS
         const actualImages = [
             '1a45e5a2-8eea-455b-a1a0-e6d951107138.jpeg',
             '21c942fd-edcd-41c0-a434-bdd1af2a83f7.jpeg',
@@ -104,21 +104,8 @@ function createFloatingImages() {
             'b6e19ec1-c39c-468c-bea7-3f6d6c4438a2.jpeg'
         ];
         
-        // Verify which images actually exist and load properly
-        const validImages = [];
-        for (const imageName of actualImages) {
-            try {
-                const response = await fetch(`${imageFolder}${imageName}`, { method: 'HEAD' });
-                if (response.ok) {
-                    validImages.push(imageName);
-                }
-            } catch (error) {
-                console.log(`Could not load ${imageName}:`, error);
-            }
-        }
-        
-        console.log(`Found ${validImages.length} valid images in folder:`, validImages);
-        return validImages.length > 0 ? validImages : ['test1.png']; // Fallback to test1.png if none load
+        console.log(`Using ${actualImages.length} images from folder:`, actualImages);
+        return actualImages;
     }
     
     class FloatingImage {
@@ -126,34 +113,75 @@ function createFloatingImages() {
             this.img = document.createElement('img');
             this.img.src = imageSrc;
             this.img.className = 'floating-valentine-physics';
-            
-            // Enhanced responsive size calculation - bigger scaling for larger screens
+
+            // We'll set dimensions after image loads
+            this.img.onload = () => {
+                const aspectRatio = this.img.naturalWidth / this.img.naturalHeight;
+
+                // Keep the size calculation but apply it correctly
+                const screenArea = window.innerWidth * window.innerHeight;
+                const screenDiagonal = Math.sqrt(screenArea);
+
+                let baseSize;
+                if (screenArea < 500000) {
+                    baseSize = screenDiagonal * 0.06;
+                } else if (screenArea < 1000000) {
+                    baseSize = screenDiagonal * 0.09;
+                } else if (screenArea < 2000000) {
+                    baseSize = screenDiagonal * 0.12;
+                } else {
+                    baseSize = screenDiagonal * 0.14;
+                }
+
+                const sizeVariation = baseSize * 0.5;
+                const targetSize = baseSize + Math.random() * sizeVariation;
+                const minSize = screenArea < 1000000 ? 80 : 120;
+                const finalSize = Math.max(minSize, Math.min(400, targetSize));
+
+                // Set width and height based on aspect ratio
+                if (aspectRatio > 1) {
+                    // Wider than tall
+                    this.width = finalSize;
+                    this.height = finalSize / aspectRatio;
+                } else {
+                    // Taller than wide
+                    this.height = finalSize;
+                    this.width = finalSize * aspectRatio;
+                }
+
+                this.img.style.width = this.width + 'px';
+                this.img.style.height = this.height + 'px';
+                this.updatePosition();
+            };
+
+            // Enhanced responsive size calculation
             const screenArea = window.innerWidth * window.innerHeight;
             const screenDiagonal = Math.sqrt(screenArea);
-            
-            // More aggressive scaling based on screen type
+
             let baseSize;
-            if (screenArea < 500000) {        // Mobile screens
-                baseSize = screenDiagonal * 0.06;     // 6% of diagonal
-            } else if (screenArea < 1000000) { // Tablet screens
-                baseSize = screenDiagonal * 0.09;     // 9% of diagonal
-            } else if (screenArea < 2000000) { // Laptop screens
-                baseSize = screenDiagonal * 0.12;     // 12% of diagonal (much bigger!)
-            } else {                          // Large desktop/4K screens
-                baseSize = screenDiagonal * 0.14;     // 14% of diagonal
+            if (screenArea < 500000) {
+                baseSize = screenDiagonal * 0.06;
+            } else if (screenArea < 1000000) {
+                baseSize = screenDiagonal * 0.09;
+            } else if (screenArea < 2000000) {
+                baseSize = screenDiagonal * 0.12;
+            } else {
+                baseSize = screenDiagonal * 0.14;
             }
-            
-            const sizeVariation = baseSize * 0.5; // 50% size variation for more diversity
+
+            const sizeVariation = baseSize * 0.5;
             this.size = baseSize + Math.random() * sizeVariation;
-            
-            // Adjusted size constraints - higher minimum for larger screens
-            const minSize = screenArea < 1000000 ? 80 : 120; // Bigger minimum for laptop+
+            const minSize = screenArea < 1000000 ? 80 : 120;
             this.size = Math.max(minSize, Math.min(400, this.size));
-            
+
+            // Initialize with square for now
+            this.width = this.size;
+            this.height = this.size;
+
             this.img.style.width = this.size + 'px';
             this.img.style.height = 'auto';
-            
-            // Random starting position across the screen
+
+            // Random starting position
             this.x = Math.random() * (window.innerWidth - this.size);
             this.y = Math.random() * (window.innerHeight - this.size);
             
@@ -183,7 +211,7 @@ function createFloatingImages() {
             
             // Random starting rotation
             this.rotation = Math.random() * 360;
-            this.rotationSpeed = (Math.random() - 0.5) * 2; // -1 to 1 degrees per frame
+            this.rotationSpeed = (Math.random() - 0.5) * 0.5; // -0.25 to 0.25 degrees per frame
             
             this.updatePosition();
             document.body.appendChild(this.img);
@@ -197,143 +225,200 @@ function createFloatingImages() {
         
         update() {
             // Apply drag/friction to gradually slow down movement
-            const dragFactor = 0.998; // Very gentle drag (0.2% reduction per frame)
+            const dragFactor = 0.998;
             this.vx *= dragFactor;
             this.vy *= dragFactor;
-            
+
             // Update position
             this.x += this.vx;
             this.y += this.vy;
             this.rotation += this.rotationSpeed;
-            
-            // Bounce off all edges of the viewport/screen with velocity damping
+
+            // Bounce off all edges of the viewport/screen
             let bounced = false;
-            
+
             if (this.x <= 0) {
                 this.x = 0;
-                this.vx = Math.abs(this.vx) * 0.8; // Bounce right with 20% energy loss
+                this.vx = Math.abs(this.vx) * 0.8;
                 bounced = true;
-            } else if (this.x >= window.innerWidth - this.size) {
-                this.x = window.innerWidth - this.size;
-                this.vx = -Math.abs(this.vx) * 0.8; // Bounce left with 20% energy loss
+            } else if (this.x >= window.innerWidth - this.width) {
+                this.x = window.innerWidth - this.width;
+                this.vx = -Math.abs(this.vx) * 0.8;
                 bounced = true;
             }
-            
+
             if (this.y <= 0) {
                 this.y = 0;
-                this.vy = Math.abs(this.vy) * 0.8; // Bounce down with 20% energy loss
+                this.vy = Math.abs(this.vy) * 0.8;
                 bounced = true;
-            } else if (this.y >= window.innerHeight - this.size) {
-                this.y = window.innerHeight - this.size;
-                this.vy = -Math.abs(this.vy) * 0.8; // Bounce up with 20% energy loss
+            } else if (this.y >= window.innerHeight - this.height) {
+                this.y = window.innerHeight - this.height;
+                this.vy = -Math.abs(this.vy) * 0.8;
                 bounced = true;
             }
-            
-            // If bounced and moving too fast, add extra damping
+
+            // Check collision with buttons and text elements
+            this.checkDOMCollisions();
+
+            // If bounced, reduce rotation
             if (bounced) {
+                this.rotationSpeed *= 0.8;
+
                 const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
                 const maxBounceSpeed = 2.0;
-                
+
                 if (currentSpeed > maxBounceSpeed) {
                     const scale = maxBounceSpeed / currentSpeed;
                     this.vx *= scale;
                     this.vy *= scale;
                 }
             }
-            
-            // Ensure minimum movement to prevent complete stopping
+
+            // Ensure minimum movement
             const minSpeed = 0.1;
             const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-            
+
             if (currentSpeed < minSpeed && currentSpeed > 0) {
                 const scale = minSpeed / currentSpeed;
                 this.vx *= scale;
                 this.vy *= scale;
             }
-            
-            // Add tiny random movement to prevent getting completely stuck
+
+            // Add tiny random movement
             if (Math.abs(this.vx) < 0.05 && Math.abs(this.vy) < 0.05) {
                 this.vx += (Math.random() - 0.5) * 0.1;
                 this.vy += (Math.random() - 0.5) * 0.1;
             }
-            
+
             this.updatePosition();
         }
-        
-        // Check collision with another image
-        collidesWith(other) {
-            const dx = this.x - other.x;
-            const dy = this.y - other.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            const collisionDistance = (this.size + other.size) / 2.2; // More accurate collision detection
-            return distance < collisionDistance;
+
+        // Check collision with DOM elements (buttons, text, etc)
+        checkDOMCollisions() {
+            const elementsToCheck = [
+                document.querySelector('.yes-button'),
+                document.querySelector('.no-button'),
+                document.querySelector('h1'),
+                document.querySelector('.gif_container img')
+            ].filter(el => el !== null);
+
+            elementsToCheck.forEach(element => {
+                const rect = element.getBoundingClientRect();
+
+                // Check if image overlaps with element using AABB
+                if (this.x < rect.right &&
+                    this.x + this.width > rect.left &&
+                    this.y < rect.bottom &&
+                    this.y + this.height > rect.top) {
+
+                    // Calculate centers
+                    const imgCenterX = this.x + this.width / 2;
+                    const imgCenterY = this.y + this.height / 2;
+                    const rectCenterX = rect.left + rect.width / 2;
+                    const rectCenterY = rect.top + rect.height / 2;
+
+                    const dx = imgCenterX - rectCenterX;
+                    const dy = imgCenterY - rectCenterY;
+
+                    // Determine which side to bounce from
+                    const overlapX = (this.width / 2 + rect.width / 2) - Math.abs(dx);
+                    const overlapY = (this.height / 2 + rect.height / 2) - Math.abs(dy);
+
+                    if (overlapX < overlapY) {
+                        // Bounce horizontally
+                        this.vx = dx > 0 ? Math.abs(this.vx) : -Math.abs(this.vx);
+                        this.vx *= 0.8;
+                        this.x += dx > 0 ? overlapX : -overlapX;
+                    } else {
+                        // Bounce vertically
+                        this.vy = dy > 0 ? Math.abs(this.vy) : -Math.abs(this.vy);
+                        this.vy *= 0.8;
+                        this.y += dy > 0 ? overlapY : -overlapY;
+                    }
+
+                    this.rotationSpeed *= 0.75;
+                }
+            });
         }
-        
+
+        // Check collision with another image using AABB
+        collidesWith(other) {
+            return (this.x < other.x + other.width &&
+                    this.x + this.width > other.x &&
+                    this.y < other.y + other.height &&
+                    this.y + this.height > other.y);
+        }
+
         // Bounce off another image
         bounceOff(other) {
-            const dx = this.x - other.x;
-            const dy = this.y - other.y;
+            const thisCenterX = this.x + this.width / 2;
+            const thisCenterY = this.y + this.height / 2;
+            const otherCenterX = other.x + other.width / 2;
+            const otherCenterY = other.y + other.height / 2;
+
+            const dx = thisCenterX - otherCenterX;
+            const dy = thisCenterY - otherCenterY;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance > 0 && distance < (this.size + other.size) / 2) {
+
+            if (distance > 0) {
                 // Normalize direction
                 const nx = dx / distance;
                 const ny = dy / distance;
-                
-                // Separate the images first to prevent overlap
-                const overlap = (this.size + other.size) / 2 - distance;
-                const separation = overlap * 0.6;
-                
-                this.x += nx * separation * 0.5;
-                this.y += ny * separation * 0.5;
-                other.x -= nx * separation * 0.5;
-                other.y -= ny * separation * 0.5;
-                
-                // Calculate relative velocity in collision normal direction
-                const rvx = this.vx - other.vx;
-                const rvy = this.vy - other.vy;
-                const speed = rvx * nx + rvy * ny;
-                
-                // Do not resolve if velocities are separating
-                if (speed > 0) return;
-                
-                // Apply collision response with bounce factor
-                const bounceForce = 0.7; // Good balance between realistic and energetic
-                const impulse = 2 * speed / 2; // Assume equal mass
-                const impulseX = impulse * nx * bounceForce;
-                const impulseY = impulse * ny * bounceForce;
-                
-                // Update velocities
-                this.vx -= impulseX;
-                this.vy -= impulseY;
-                other.vx += impulseX;
-                other.vy += impulseY;
-                
-                // Apply slight damping only on collision
-                const collisionDamping = 0.95;
-                this.vx *= collisionDamping;
-                this.vy *= collisionDamping;
-                other.vx *= collisionDamping;
-                other.vy *= collisionDamping;
-                
-                // Ensure minimum speed after collision
-                const minSpeed = 0.2;
-                [this, other].forEach(img => {
-                    const imgSpeed = Math.sqrt(img.vx * img.vx + img.vy * img.vy);
-                    if (imgSpeed < minSpeed) {
-                        const scale = minSpeed / (imgSpeed || 0.1);
-                        img.vx *= scale;
-                        img.vy *= scale;
+
+                // Calculate overlap based on actual rectangles
+                const overlapX = (this.width / 2 + other.width / 2) - Math.abs(dx);
+                const overlapY = (this.height / 2 + other.height / 2) - Math.abs(dy);
+                const overlap = Math.min(overlapX, overlapY);
+
+                if (overlap > 0) {
+                    // Push apart based on overlap
+                    const pushAmount = overlap * 0.51;
+                    this.x += nx * pushAmount;
+                    this.y += ny * pushAmount;
+                    other.x -= nx * pushAmount;
+                    other.y -= ny * pushAmount;
+
+                    // Calculate relative velocity
+                    const rvx = this.vx - other.vx;
+                    const rvy = this.vy - other.vy;
+                    const relativeSpeed = rvx * nx + rvy * ny;
+
+                    // Apply bounce
+                    if (relativeSpeed < 0) {
+                        const restitution = 0.9;
+                        const impulse = -(1 + restitution) * relativeSpeed / 2;
+
+                        this.vx += impulse * nx;
+                        this.vy += impulse * ny;
+                        other.vx -= impulse * nx;
+                        other.vy -= impulse * ny;
+                    } else {
+                        // Extra push if already separating
+                        const pushSpeed = 0.5;
+                        this.vx += nx * pushSpeed;
+                        this.vy += ny * pushSpeed;
+                        other.vx -= nx * pushSpeed;
+                        other.vy -= ny * pushSpeed;
                     }
-                    
-                    // Cap maximum collision speed
-                    const maxSpeed = 3.5;
-                    if (imgSpeed > maxSpeed) {
-                        const scale = maxSpeed / imgSpeed;
-                        img.vx *= scale;
-                        img.vy *= scale;
-                    }
-                });
+
+                    // Reduce rotation slightly
+                    this.rotationSpeed *= 0.7;
+                    other.rotationSpeed *= 0.7;
+
+                    // Ensure minimum speeds
+                    [this, other].forEach(img => {
+                        const speed = Math.sqrt(img.vx * img.vx + img.vy * img.vy);
+                        if (speed < 0.4) {
+                            const angle = Math.atan2(img.vy, img.vx);
+                            img.vx = Math.cos(angle) * 0.4;
+                            img.vy = Math.sin(angle) * 0.4;
+                        }
+                        if (speed > 4.0) {
+                            img.vx *= 4.0 / speed;
+                            img.vy *= 4.0 / speed;
+                        }
+                    });
+                }
             }
         }
     }
@@ -402,16 +487,18 @@ function createFloatingImages() {
     function animate() {
         // Update all images
         floatingImages.forEach(img => img.update());
-        
-        // Check collisions between all images
-        for (let i = 0; i < floatingImages.length; i++) {
-            for (let j = i + 1; j < floatingImages.length; j++) {
-                if (floatingImages[i].collidesWith(floatingImages[j])) {
-                    floatingImages[i].bounceOff(floatingImages[j]);
+
+        // Check collisions between all images multiple times per frame
+        for (let iteration = 0; iteration < 3; iteration++) {
+            for (let i = 0; i < floatingImages.length; i++) {
+                for (let j = i + 1; j < floatingImages.length; j++) {
+                    if (floatingImages[i].collidesWith(floatingImages[j])) {
+                        floatingImages[i].bounceOff(floatingImages[j]);
+                    }
                 }
             }
         }
-        
+
         animationId = requestAnimationFrame(animate);
     }
     
